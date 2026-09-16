@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>타로 세 장 리딩</title>
+<style>
+  :root{
+    --bg: #12101c;
+    --panel: #1c1830;
+    --line: #3a3255;
+    --gold: #c9a24b;
+    --ink: #ece7f5;
+    --dim: #a89fc2;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:
+      radial-gradient(circle at 50% -10%, #2a2350 0%, var(--bg) 55%);
+    color:var(--ink);
+    font-family: "Noto Serif KR", Georgia, serif;
+    min-height:100vh;
+    display:flex;
+    justify-content:center;
+    padding: 32px 16px 64px;
+  }
+  .wrap{width:100%; max-width:480px;}
+  h1{
+    font-size: 26px;
+    font-weight:600;
+    letter-spacing: 0.02em;
+    text-align:center;
+    margin: 4px 0 6px;
+  }
+  .sub{
+    text-align:center;
+    color:var(--dim);
+    font-family: -apple-system, sans-serif;
+    font-size: 13px;
+    margin-bottom: 28px;
+  }
+  input[type=text]{
+    width:100%;
+    padding:14px 16px;
+    border-radius: 10px;
+    border: 1px solid var(--line);
+    background: var(--panel);
+    color: var(--ink);
+    font-family: -apple-system, sans-serif;
+    font-size:15px;
+    outline:none;
+  }
+  input[type=text]:focus{ border-color: var(--gold); }
+  button{
+    width:100%;
+    margin-top:12px;
+    padding:14px 0;
+    border-radius:10px;
+    border:none;
+    background: linear-gradient(135deg, #c9a24b, #a97f2b);
+    color:#1c1830;
+    font-family: -apple-system, sans-serif;
+    font-weight:600;
+    font-size:15px;
+    cursor:pointer;
+    letter-spacing:0.02em;
+  }
+  button:disabled{ opacity:0.5; }
+  .cards{
+    display:grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap:10px;
+    margin-top:32px;
+  }
+  .card{
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 10px 8px 12px;
+    text-align:center;
+    opacity:0;
+    transform: translateY(8px);
+    transition: opacity .5s, transform .5s;
+  }
+  .card.show{ opacity:1; transform:none; }
+  .card .role{
+    font-family:-apple-system, sans-serif;
+    font-size:11px;
+    color:var(--gold);
+    letter-spacing:0.03em;
+    margin-bottom:6px;
+  }
+  .card .name{ font-size:13.5px; line-height:1.3; font-weight:600; }
+  .card .orient{
+    font-family:-apple-system, sans-serif;
+    font-size:11px;
+    color:var(--dim);
+    margin-top:2px;
+  }
+  .result{
+    margin-top:26px;
+    background: var(--panel);
+    border:1px solid var(--line);
+    border-radius: 12px;
+    padding: 20px;
+    font-family: -apple-system, sans-serif;
+    font-size: 14px;
+    line-height:1.7;
+    color: var(--ink);
+    display:none;
+  }
+  .result.show{ display:block; }
+  .result .yn{
+    display:inline-block;
+    margin-top:10px;
+    padding:4px 12px;
+    border-radius: 999px;
+    background: rgba(201,162,75,0.15);
+    color: var(--gold);
+    font-weight:600;
+    font-size:13px;
+  }
+  .meaning-line{ color: var(--dim); font-size:13px; margin-top:4px;}
+  .datastatus{
+    text-align:center;
+    margin-top:22px;
+    font-family:-apple-system, sans-serif;
+    font-size:11.5px;
+    color:var(--dim);
+  }
+  footer{
+    text-align:center;
+    margin-top:36px;
+    color: var(--dim);
+    font-family:-apple-system, sans-serif;
+    font-size:11.5px;
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>타로 세 장 리딩</h1>
+  <div class="sub">질문을 적고 카드를 뽑으면, 핵심 · 맥락 · 조언 세 장을 함께 해석해드립니다</div>
+
+  <input id="question" type="text" placeholder="예) 이번 이사 결정이 잘한 선택일까?">
+  <button id="drawBtn" onclick="doReading()">카드 세 장 뽑기</button>
+
+  <div class="cards" id="cards"></div>
+  <div class="result" id="result"></div>
+
+  <div class="datastatus" id="dataStatus">데이터 소스 확인 중...</div>
+  <footer>secrets 기반 암호학적 난수로 78장 중 3장을 중복 없이 추첨합니다</footer>
+</div>
+
+<script>
+// ---------- 덱 데이터 (Python 버전과 동일 구조) ----------
+const MAJOR = [
+ ["0. The Fool (광대)","새로운 시작, 순수한 도전, 예측 불가능한 모험","무모함, 경솔한 판단, 준비 부족","yes"],
+ ["I. The Magician (마법사)","의지의 실현, 자원 활용, 창조적 시작","능력 낭비, 자신감 부족, 속임수","yes"],
+ ["II. The High Priestess (여사제)","직관, 숨겨진 지혜, 내면의 목소리","직관 무시, 비밀, 혼란","그 외"],
+ ["III. The Empress (여황제)","풍요, 창조성, 돌봄과 성장","정체, 과잉보호, 창조력 고갈","yes"],
+ ["IV. The Emperor (황제)","질서, 안정, 리더십과 통제","경직됨, 독단, 권위 남용","yes"],
+ ["V. The Hierophant (교황)","전통, 규범, 배움과 조언","낡은 관습, 반항, 융통성 부족","그 외"],
+ ["VI. The Lovers (연인)","사랑, 조화로운 선택, 결합","불균형, 관계의 갈등, 잘못된 선택","yes"],
+ ["VII. The Chariot (전차)","의지로 밀고 나가는 승리, 추진력","방향 상실, 통제력 상실, 지연","yes"],
+ ["VIII. Strength (힘)","내면의 힘, 인내, 부드러운 용기","자기 의심, 나약함, 힘의 오용","yes"],
+ ["IX. The Hermit (은둔자)","성찰, 고독한 탐구, 내면의 답","고립, 외로움, 도움 거절","그 외"],
+ ["X. Wheel of Fortune (운명의 수레바퀴)","운의 흐름, 전환점, 변화","불운, 통제 밖의 변수, 정체된 운","그 외"],
+ ["XI. Justice (정의)","공정, 인과, 균형 잡힌 결정","불공정, 편향된 판단, 책임 회피","그 외"],
+ ["XII. The Hanged Man (매달린 사람)","관점의 전환, 기다림, 내려놓음","정체, 희생 낭비, 저항","no"],
+ ["XIII. Death (죽음)","끝과 새로운 시작, 변형","변화에 대한 저항, 정체된 끝","그 외"],
+ ["XIV. Temperance (절제)","균형, 조화, 인내로 섞어내는 중용","불균형, 극단, 조급함","yes"],
+ ["XV. The Devil (악마)","속박, 유혹, 집착과 욕망","속박에서 벗어남, 자각, 해방","no"],
+ ["XVI. The Tower (탑)","급격한 붕괴, 충격적 깨달음, 해체","위기를 피함, 지연된 붕괴","no"],
+ ["XVII. The Star (별)","희망, 치유, 영감","믿음 상실, 실망, 방향 잃은 희망","yes"],
+ ["XVIII. The Moon (달)","불안, 착각, 무의식","혼란 해소, 진실이 드러남","그 외"],
+ ["XIX. The Sun (태양)","성공, 활력, 명확한 기쁨","일시적 우울, 과도한 낙관","yes"],
+ ["XX. Judgement (심판)","각성, 결산, 부름에 응답","자기 비판, 미련, 결정 회피","그 외"],
+ ["XXI. The World (세계)","완성, 성취, 통합된 결실","미완성, 지연된 완성, 마무리 부족","yes"],
+];
+
+const SUITS = {
+  "Wands (완드)": {domain:"열정, 행동, 일과 의욕", bias:"yes"},
+  "Cups (컵)": {domain:"감정, 관계, 사랑과 직관", bias:"그 외"},
+  "Swords (소드)": {domain:"생각, 갈등, 진실과 도전", bias:"no"},
+  "Pentacles (펜타클)": {domain:"물질, 돈, 현실과 건강", bias:"yes"},
+};
+
+const RANKS = [
+ ["Ace","새로운 가능성의 씨앗, 순수한 시작","기회를 놓침, 준비 안 된 시작","yes"],
+ ["2","선택의 갈림길, 균형 잡기","결정 장애, 불균형한 협상","그 외"],
+ ["3","협력을 통한 성장, 확장","팀워크 붕괴, 성장 지연","yes"],
+ ["4","안정과 잠시의 휴식","권태, 정체된 안정","그 외"],
+ ["5","갈등과 변화의 압박","갈등 해소, 회복의 시작","no"],
+ ["6","조화와 나눔, 승리의 공유","불공평한 나눔, 과거에 머무름","yes"],
+ ["7","성찰과 인내, 전략 재정비","포기, 방향성 상실","그 외"],
+ ["8","빠른 움직임과 진전","속도 조절 실패, 성급함","yes"],
+ ["9","완성 직전의 고독한 노력","지침, 불안, 탈진","그 외"],
+ ["10","완성과 끝, 다음 단계로의 전환","짐의 과중, 마무리의 어려움","그 외"],
+ ["Page","배움과 호기심, 젊은 기운의 전조","미숙함, 경솔한 소식","그 외"],
+ ["Knight","행동력과 추진, 저돌적인 전개","무모한 돌진, 성급한 행동","yes"],
+ ["Queen","성숙한 내적 힘, 포용력 있는 다스림","감정 기복, 내면의 불안정","그 외"],
+ ["King","숙련된 리더십과 통제력","권위의 오용, 경직된 통제","그 외"],
+];
+
+function combineYesNo(a,b){
+  if(a===b) return a;
+  if(a==="그 외") return b;
+  if(b==="그 외") return a;
+  return "그 외";
+}
+
+// 우리 카드명(한글 포함) <-> tarotapi.dev 캐시(tarot_data_cache.json)의 영문 카드명 매칭용
+// (Python 버전 tarot_reader.py의 MAJOR_EN_NAMES / RANK_EN_WORDS와 동일하게 유지)
+const MAJOR_EN_NAMES = [
+  "The Fool","The Magician","The High Priestess","The Empress","The Emperor",
+  "The Hierophant","The Lovers","The Chariot","Strength","The Hermit",
+  "Wheel of Fortune","Justice","The Hanged Man","Death","Temperance",
+  "The Devil","The Tower","The Star","The Moon","The Sun","Judgement","The World",
+];
+const RANK_EN_WORDS = {
+  "Ace":"Ace","2":"Two","3":"Three","4":"Four","5":"Five",
+  "6":"Six","7":"Seven","8":"Eight","9":"Nine","10":"Ten",
+  "Page":"Page","Knight":"Knight","Queen":"Queen","King":"King",
+};
+
+function buildDeck(externalMeanings){
+  externalMeanings = externalMeanings || {};
+
+  const deck = MAJOR.map(([name, up, rev, yn], i) => {
+    const ext = externalMeanings[MAJOR_EN_NAMES[i]];
+    if(ext && ext.meaning_up && ext.meaning_rev){
+      up = `(외부 데이터) ${ext.meaning_up}`;
+      rev = `(외부 데이터) ${ext.meaning_rev}`;
+    }
+    return {name, up, rev, yn};
+  });
+
+  for(const [suitName, suit] of Object.entries(SUITS)){
+    const suitEn = suitName.split(" (")[0];
+    for(const [rankName, rUp, rRev, rYn] of RANKS){
+      const enName = `${RANK_EN_WORDS[rankName]} of ${suitEn}`;
+      const ext = externalMeanings[enName];
+      let up, rev;
+      if(ext && ext.meaning_up && ext.meaning_rev){
+        up = `(외부 데이터) ${ext.meaning_up}`;
+        rev = `(외부 데이터) ${ext.meaning_rev}`;
+      } else {
+        up = `[${suit.domain}] ${rUp}`;
+        rev = `[${suit.domain}] ${rRev}`;
+      }
+      deck.push({
+        name: `${rankName} of ${suitName}`,
+        up, rev,
+        yn: combineYesNo(suit.bias, rYn)
+      });
+    }
+  }
+  return deck;
+}
+
+let DECK = buildDeck(); // 내장 데이터로 즉시 동작 (외부 캐시 로딩과 무관하게 바로 사용 가능)
+
+const MAX_CACHE_AGE_DAYS = 30;
+
+async function refreshFromCache(){
+  const statusEl = document.getElementById('dataStatus');
+  try{
+    // 같은 폴더(또는 GitHub Pages 배포 경로)의 tarot_data_cache.json을 시도
+    const res = await fetch('./tarot_data_cache.json', { cache: 'no-store' });
+    if(!res.ok) throw new Error(`HTTP ${res.status}`);
+    const payload = await res.json();
+
+    const fetchedAt = new Date(payload.fetched_at);
+    const ageDays = (Date.now() - fetchedAt.getTime()) / (1000*60*60*24);
+    if(ageDays > MAX_CACHE_AGE_DAYS){
+      statusEl.textContent = `데이터: 내장 기본값 사용 (외부 캐시가 ${Math.floor(ageDays)}일 전 데이터라 제외)`;
+      return;
+    }
+
+    DECK = buildDeck(payload.cards || {});
+    statusEl.textContent = `데이터: 외부 갱신본 사용 (기준일 ${fetchedAt.toISOString().slice(0,10)})`;
+  }catch(e){
+    statusEl.textContent = "데이터: 내장 기본값 사용 (외부 캐시 없음 - GitHub Actions 미연동 상태)";
+  }
+}
+refreshFromCache();
+
+// 암호학적 난수 (crypto.getRandomValues 사용, Python의 secrets와 동일한 목적)
+function secureRandomInt(maxExclusive){
+  const arr = new Uint32Array(1);
+  crypto.getRandomValues(arr);
+  return arr[0] % maxExclusive;
+}
+
+function drawThreeUnique(){
+  const idxPool = [...Array(DECK.length).keys()];
+  const drawn = [];
+  for(let i=0;i<3;i++){
+    const pick = secureRandomInt(idxPool.length);
+    const idx = idxPool.splice(pick,1)[0];
+    const isRev = secureRandomInt(2) === 1;
+    const card = DECK[idx];
+    drawn.push({
+      index: idx,
+      name: card.name,
+      orientation: isRev ? "역방향" : "정방향",
+      meaning: isRev ? card.rev : card.up,
+      yn: card.yn
+    });
+  }
+  return drawn;
+}
+
+function doReading(){
+  const q = document.getElementById('question').value.trim() || "(질문을 적지 않으셨어요) 지금 나에게 필요한 메시지는?";
+  const [core, ctx, advice] = drawThreeUnique();
+
+  const cardsEl = document.getElementById('cards');
+  const roles = [["핵심 답", core], ["맥락", ctx], ["조언", advice]];
+  cardsEl.innerHTML = roles.map(([role, c]) => `
+    <div class="card">
+      <div class="role">${role}</div>
+      <div class="name">${c.name}</div>
+      <div class="orient">${c.orientation}</div>
+    </div>
+  `).join("");
+  // stagger reveal animation
+  [...cardsEl.children].forEach((el, i) => {
+    setTimeout(() => el.classList.add('show'), i*180);
+  });
+
+  const votes = [core.yn, ctx.yn, advice.yn];
+  const yes = votes.filter(v=>v==="yes").length;
+  const no = votes.filter(v=>v==="no").length;
+  let overall = "Yes/No가 팽팽하거나 상황에 따라 달라짐";
+  if(yes>no) overall = "Yes 쪽에 가까움";
+  else if(no>yes) overall = "No 쪽에 가까움";
+
+  const resultEl = document.getElementById('result');
+  resultEl.innerHTML = `
+    <div><strong>질문</strong>: ${q}</div>
+    <div class="meaning-line">핵심 — ${core.name} (${core.orientation}): ${core.meaning}</div>
+    <div class="meaning-line">맥락 — ${ctx.name} (${ctx.orientation}): ${ctx.meaning}</div>
+    <div class="meaning-line">조언 — ${advice.name} (${advice.orientation}): ${advice.meaning}</div>
+    <div style="margin-top:12px;">
+      핵심적으로 <strong>${core.name}</strong>이 중심이 되어, 여기에 <strong>${ctx.name}</strong>이 지금의 맥락을 더하고,
+      마지막으로 <strong>${advice.name}</strong>이 앞으로의 조언을 건네고 있습니다.
+    </div>
+    <div class="yn">${overall}</div>
+  `;
+  setTimeout(() => resultEl.classList.add('show'), 200);
+}
+</script>
+</body>
+</html>
